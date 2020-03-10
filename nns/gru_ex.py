@@ -22,7 +22,7 @@ def split_input_target(chunk):
 
 
 def read_dataset(path="data/corpus/combined.txt"):
-    txt = open("data/corpus/combined.txt").read()
+    txt = open(path).read()
     unk_ix = CHR2IX[corpus.UNK]
     int_txt = np.array([CHR2IX.get(x, unk_ix) for x in txt])
     seq_length = 256
@@ -67,21 +67,26 @@ def shuffle_dataset(dataset, batch_size=256, buffer_size=10000):
 
 
 def fit(model, dataset, epochs=1000, checkpoint_dir="./gru_ex_checkpoints"):
-    # Directory where the checkpoints will be saved
-    checkpoint_dir = './training_checkpoints'
     # Name of the checkpoint files
-    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt_{epoch}")
+    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
 
     checkpoint_callback=tf.keras.callbacks.ModelCheckpoint(
         filepath=checkpoint_prefix,
         save_weights_only=True)
+
+    if os.listdir(checkpoint_dir):
+        print(f"Reading checkpoint from {checkpoint_dir}")
+        model.load_weights(tf.train.latest_checkpoint(checkpoint_dir))
+        # model.build(tf.TensorShape([1, None]))
+
+        model.summary()
 
     model.compile(optimizer='adam', loss=loss)
 
     shuffled_dataset = shuffle_dataset(dataset)
 
     history = model.fit(
-        shuffled_dataset, epochs=EPOCHS, callbacks=[checkpoint_callback])
+        shuffled_dataset, epochs=epochs, callbacks=[checkpoint_callback])
 
     return history
 
@@ -131,7 +136,9 @@ def generate_text(model, start_string):
 
 def learn(path="data/corpus/combined.txt",
           checkpoint_dir="./gru_ex_checkpoints"):
+    tf.get_logger().setLevel('ERROR')
     ds = read_dataset(path)
+
     model = build_model(
         vocab_size=len(ALL_CHARS),
         embedding_dim=256,
