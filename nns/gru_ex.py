@@ -8,31 +8,8 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 
-
-ALL_CHARS = list(corpus.ALL_CHARS.values()) + [corpus.UNK] + [corpus.EOS]
-
-CHR2IX = {v: k for k, v in enumerate(ALL_CHARS)}
-IX2CHR = np.array(ALL_CHARS)
-
-
-def split_input_target(chunk):
-    input_text = chunk[:-1]
-    target_text = chunk[1:]
-    return input_text, target_text
-
-
-def read_dataset(path="data/corpus/combined.txt"):
-    txt = open(path).read()
-    unk_ix = CHR2IX[corpus.UNK]
-    int_txt = np.array([CHR2IX.get(x, unk_ix) for x in txt])
-    seq_length = 256
-    examples_per_epoch = len(txt)//(seq_length+1)
-    examples_per_epoch, len(txt)
-    char_dataset = tf.data.Dataset.from_tensor_slices(int_txt)
-
-    sequences = char_dataset.batch(seq_length+1, drop_remainder=True)
-    dataset = sequences.map(split_input_target)
-    return dataset
+from corpus.three import default_ds, default_encoder
+import corpus.generic as gen
 
 
 def build_model(vocab_size, embedding_dim, rnn_units, batch_size):
@@ -83,10 +60,10 @@ def fit(model, dataset, epochs=1000, checkpoint_dir="./gru_ex_checkpoints"):
 
     model.compile(optimizer='adam', loss=loss)
 
-    shuffled_dataset = shuffle_dataset(dataset)
+    # shuffled_dataset = shuffle_dataset(dataset)
 
     history = model.fit(
-        shuffled_dataset, epochs=epochs, callbacks=[checkpoint_callback])
+        dataset, epochs=epochs, callbacks=[checkpoint_callback])
 
     return history
 
@@ -137,13 +114,14 @@ def generate_text(model, start_string):
 def learn(path="data/corpus/combined.txt",
           checkpoint_dir="./gru_ex_checkpoints"):
     tf.get_logger().setLevel('ERROR')
-    ds = read_dataset(path)
+    enc = default_encoder()
+    ds = default_ds(path)
 
     model = build_model(
-        vocab_size=len(ALL_CHARS),
+        vocab_size=len(enc.chr2ix),
         embedding_dim=256,
         rnn_units=1024,
-        batch_size=256,
+        batch_size=64,
     )
     model.summary()
     hist = fit(model, ds, checkpoint_dir=checkpoint_dir)
