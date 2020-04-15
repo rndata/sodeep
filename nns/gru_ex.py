@@ -14,13 +14,18 @@ import corpus.generic as gen
 
 def build_model(vocab_size, embedding_dim, rnn_units, batch_size):
     model = tf.keras.Sequential([
-        tf.keras.layers.Embedding(vocab_size,
-                                  embedding_dim,
-                                  batch_input_shape=[batch_size, None]),
-        tf.keras.layers.GRU(rnn_units,
-                            return_sequences=True,
-                            stateful=True,
-                            recurrent_initializer='glorot_uniform'),
+        tf.keras.layers.Embedding(
+            vocab_size,
+            embedding_dim,
+            batch_input_shape=[batch_size, None],
+            mask_zero=True,
+        ),
+        tf.keras.layers.GRU(
+            rnn_units,
+            return_sequences=True,
+            stateful=True,
+            recurrent_initializer='glorot_uniform'
+        ),
         tf.keras.layers.Dense(vocab_size)
     ])
     return model
@@ -69,14 +74,14 @@ def fit(model, dataset, epochs=1000, checkpoint_dir="./gru_ex_checkpoints"):
 
 
 
-def generate_text(model, start_string):
+def generate_text(model, enc, start_string):
     # Evaluation step (generating text using the learned model)
 
     # Number of characters to generate
     num_generate = 1000
 
     # Converting our start string to numbers (vectorizing)
-    input_eval = [CHR2IX[s] for s in start_string + corpus.EOS]
+    input_eval = enc.encode_raw(start_string)
     input_eval = tf.expand_dims(input_eval, 0)
 
     # Empty string to store our results
@@ -102,16 +107,14 @@ def generate_text(model, start_string):
         # along with the previous hidden state
         input_eval = tf.expand_dims([predicted_id], 0)
 
-        new_char = IX2CHR[predicted_id]
-        if new_char == corpus.EOS:
-            return ''.join(text_generated)
-        else:
-            text_generated.append(new_char)
+        text_generated.append(predicted_id)
+        if predicted_id == enc.eos_ix:
+            return enc.decode(text_generated)
 
-    return (start_string + ''.join(text_generated))
+    return enc.decode(text_generated)
 
 
-def learn(path="data/corpus/combined.txt",
+def learn(path="data/corpus/",
           checkpoint_dir="./gru_ex_checkpoints"):
     tf.get_logger().setLevel('ERROR')
     enc = default_encoder()
@@ -127,8 +130,8 @@ def learn(path="data/corpus/combined.txt",
     hist = fit(model, ds, checkpoint_dir=checkpoint_dir)
 
 
-def load_model(checkpoint_dir="./gru_ex_checkpoints"):
-    restored_model = build_model(len(ALL_CHARS),
+def load_model(enc, checkpoint_dir="./gru_ex_checkpoints"):
+    restored_model = build_model(len(enc.chr2ix),
                                  embedding_dim=256,
                                  rnn_units=1024,
                                  batch_size=1)
@@ -142,8 +145,9 @@ def load_model(checkpoint_dir="./gru_ex_checkpoints"):
 
 def generate(text, checkpoint_dir="./gru_ex_checkpoints"):
     tf.get_logger().setLevel('ERROR')
-    model = load_model(checkpoint_dir)
-    print(generate_text(model, text))
+    enc = default_encoder()
+    model = load_model(enc, checkpoint_dir)
+    print(">>>", generate_text(model, enc, text))
 
 
 if __name__ == "__main__":
